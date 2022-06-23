@@ -13,6 +13,6 @@ node server.js
 
 # How to deploy on glitch
     
-Install redis on your glitch project: http://redis-notes.glitch.me/
+Install redis on your Glitch project: [http://redis-notes.glitch.me/](http://redis-notes.glitch.me/)
 
-Then glitch should take care of the rest.
+Then Glitch should take care of the rest.
