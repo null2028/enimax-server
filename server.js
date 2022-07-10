@@ -749,11 +749,6 @@ async function updateImage(req) {
 
 
 
-                } else {
-
-                    await mysql_query("UPDATE video set image=?, main_link=? where image IS NULL and name=? and ep=0 and username=?", [img, main_link, name, username]);
-
-
                 }
 
                 return { "status": 200, "message": "done", "data": response };
