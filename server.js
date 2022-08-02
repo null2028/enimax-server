@@ -20,9 +20,9 @@ let redisClient = redis.createClient({
 
 
 const saltRounds = 10;
-async function config(){
+async function config() {
     await redisClient.connect();
-    
+
 }
 
 const cookieExpirationDate = new Date();
@@ -47,10 +47,10 @@ db.serialize(() => {
 
         db.run("CREATE UNIQUE INDEX video_idx_username ON users (username)");
         db.run("CREATE TABLE `video` (`id` INTEGER PRIMARY KEY,`cur_time` float(12,3) NOT NULL,`ep` float(12,3) NOT NULL,`name` text NOT NULL,`time1` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP,`time2` int DEFAULT NULL,`image` text,`curlink` text,`username` text NOT NULL,`comp` int NOT NULL DEFAULT '0',`main_link` text,`times` int NOT NULL DEFAULT '0' );")
-            
-        db.run("CREATE INDEX video_idx_name ON video (name)");  
+
+        db.run("CREATE INDEX video_idx_name ON video (name)");
     }
-  });
+});
 
 
 
@@ -62,6 +62,23 @@ const loginLimiter = rateLimit({
     store: new RedisStoreLimit({
         client: redisClient,
     }),
+    keyGenerator: (request, response) => {
+
+        let flag = false;
+        if ("x-forwarded-for" in request.headers) {
+            flag = true;
+        }
+        if (flag) {
+            try {
+                let ip = request.headers["x-forwarded-for"].split(",")[0];
+                return ip;
+            } catch (err) {
+                return request.ip;
+            }
+        } else {
+            return request.ip;
+        }
+    },
     standardHeaders: true,
     legacyHeaders: false,
 });
@@ -69,12 +86,29 @@ const loginLimiter = rateLimit({
 
 const registerLimiter = rateLimit({
     windowMs: 60 * 60 * 24 * 1000, // 24 hours
-    max: 1,
- 
+    max: 5,
+
     message: "{\"status\": 400, \"message\":\"Too many requests\"}",
     store: new RedisStoreLimit({
         client: redisClient,
     }),
+    keyGenerator: (request, response) => {
+
+        let flag = false;
+        if ("x-forwarded-for" in request.headers) {
+            flag = true;
+        }
+        if (flag) {
+            try {
+                let ip = request.headers["x-forwarded-for"].split(",")[0];
+                return ip;
+            } catch (err) {
+                return request.ip;
+            }
+        } else {
+            return request.ip;
+        }
+    },
     standardHeaders: true,
     skipFailedRequests: true,
     legacyHeaders: false,
@@ -88,6 +122,23 @@ const resetLimiter = rateLimit({
     store: new RedisStoreLimit({
         client: redisClient,
     }),
+    keyGenerator: (request, response) => {
+
+        let flag = false;
+        if ("x-forwarded-for" in request.headers) {
+            flag = true;
+        }
+        if (flag) {
+            try {
+                let ip = request.headers["x-forwarded-for"].split(",")[0];
+                return ip;
+            } catch (err) {
+                return request.ip;
+            }
+        } else {
+            return request.ip;
+        }
+    },
     message: "{\"status\": 400, \"message\":\"Too many requests\"}",
     standardHeaders: true,
     legacyHeaders: false,
@@ -104,7 +155,7 @@ function goodRequest(data, keys) {
 }
 
 
-redisClient.on("error", function(error) {
+redisClient.on("error", function (error) {
     console.error(error);
 });
 
@@ -121,10 +172,10 @@ app.use(urlencodedParser);
 app.use(cookieParser());
 
 
-app.use(function(req, res, next) {
+app.use(function (req, res, next) {
     try {
-        if (!("cookie" in req.headers)){
-        req.headers["cookie"] = req.headers["x-session"];
+        if (!("cookie" in req.headers)) {
+            req.headers["cookie"] = req.headers["x-session"];
         }
     } catch (err) {
 
@@ -146,21 +197,21 @@ app.use(session({
 
 
 function updateSession(sessionId, username) {
-    return (new Promise(function(resolve, reject) {
-        redisClient.HLEN(username, function(err, res) {
+    return (new Promise(function (resolve, reject) {
+        redisClient.HLEN(username, function (err, res) {
             if (err) {
                 reject(err);
             } else {
                 if (res >= 10) {
-                    redisClient.hkeys(username, function(err, res) {
+                    redisClient.hkeys(username, function (err, res) {
                         if (err) {
                             reject(err);
                         } else {
-                            redisClient.HDEL([username, ...res.slice(0, res.length - 10)], function(err, res) {
+                            redisClient.HDEL([username, ...res.slice(0, res.length - 10)], function (err, res) {
 
                             });
 
-                            redisClient.HSET(username,[sessionId, 0], function(err, res) {
+                            redisClient.HSET(username, [sessionId, 0], function (err, res) {
                                 if (err) {
                                     reject(err);
                                 } else {
@@ -171,7 +222,7 @@ function updateSession(sessionId, username) {
                     });
 
                 } else {
-                    redisClient.HSET(username,[sessionId, 0], function(err, res) {
+                    redisClient.HSET(username, [sessionId, 0], function (err, res) {
                         if (err) {
                             reject(err);
                         } else {
@@ -191,8 +242,8 @@ function updateSession(sessionId, username) {
 function revokeAllSessions(sessionId, username) {
 
 
-    return (new Promise(function(resolve, reject) {
-        let out = redisClient.DEL(username, function(err, res) {
+    return (new Promise(function (resolve, reject) {
+        let out = redisClient.DEL(username, function (err, res) {
             if (err) {
                 reject(err);
             } else {
@@ -208,10 +259,10 @@ function revokeAllSessions(sessionId, username) {
 
 function checkIfValid(req) {
 
-    return (new Promise(function(resolve, reject) {
+    return (new Promise(function (resolve, reject) {
         try {
             if ("session" in req && "user" in req["session"]) {
-                let out = redisClient.HEXISTS([req.session.user.username, req.session.id], function(err, res) {
+                let out = redisClient.HEXISTS([req.session.user.username, req.session.id], function (err, res) {
                     if (err) {
                         reject(err);
                     } else {
@@ -230,8 +281,8 @@ function checkIfValid(req) {
 function deleteSession(sessionId, username) {
 
 
-    return (new Promise(function(resolve, reject) {
-        let out = redisClient.HDEL([username, sessionId], function(err, res) {
+    return (new Promise(function (resolve, reject) {
+        let out = redisClient.HDEL([username, sessionId], function (err, res) {
             if (err) {
                 reject(err);
             } else {
@@ -244,13 +295,13 @@ function deleteSession(sessionId, username) {
 
 
 app.use('/login', loginLimiter);
-app.post('/login', function(req, res) {
+app.post('/login', function (req, res) {
 
     if (goodRequest(req.body, ["username", "password"])) {
 
         let username = req.body.username;
         let password = req.body.password;
-        db.all('SELECT * FROM users WHERE username = ?', [username], function(err, row) {
+        db.all('SELECT * FROM users WHERE username = ?', [username], function (err, row) {
 
             if (err) {
                 res.status(500).json({ "status": 500, "message": "Internal Error", "errorCode": 60000 });
@@ -263,36 +314,36 @@ app.post('/login', function(req, res) {
             } else {
 
 
-                bcrypt.compare(password, row[0].hashed_password, async function(err, result) {
-                    if(err){
+                bcrypt.compare(password, row[0].hashed_password, async function (err, result) {
+                    if (err) {
                         res.status(500).json({ "status": 500, "message": "Internal Error", "errorCode": 60002 });
                         return;
-                    }else if(result === false){
+                    } else if (result === false) {
                         res.status(400).json({ "status": 400, "message": "Incorrect username or password", "errorCode": 60001 });
                         return;
-                    }else if(result === true){
+                    } else if (result === true) {
                         let user = {
                             id: row[0].id.toString(),
                             username: row[0].username,
                         };
-    
+
                         try {
                             if ("user" in req.session) {
                                 await deleteSession(req.session.id, req.session.user.username);
                             }
-    
+
                             await updateSession(req.session.id, user.username);
                             req.session["user"] = user;
                             res.status(200).json({ "status": 200, "message": "success", "errorCode": 60005 });
-    
+
                         } catch (err) {
                             console.log(err);
                             res.status(500).json({ "status": 500, "message": "Unexpected error", "errorCode": 60004 });
-    
+
                         }
                     }
                 });
-                
+
             }
         });
     } else {
@@ -304,7 +355,7 @@ app.post('/login', function(req, res) {
 
 app.use('/register', registerLimiter);
 
-app.post('/register', function(req, res) {
+app.post('/register', function (req, res) {
     if (goodRequest(req.body, ["email", "username", "password"])) {
         try {
             let email = req.body.email;
@@ -313,28 +364,28 @@ app.post('/register', function(req, res) {
 
 
 
-            bcrypt.genSalt(saltRounds, function(err, salt) {
-                if(err){
+            bcrypt.genSalt(saltRounds, function (err, salt) {
+                if (err) {
                     res.status(500).json({ "status": 500, "message": "Internal Error", "errorCode": 10001 });
                     return;
                 }
-                bcrypt.hash(password, salt, function(err, hash) {
-                    if(err){
+                bcrypt.hash(password, salt, function (err, hash) {
+                    if (err) {
                         res.status(500).json({ "status": 500, "message": "Internal Error", "errorCode": 10002 });
                         return;
                     }
 
 
-                    mysql_query('INSERT INTO users (username, hashed_password, email) VALUES (?, ?, ?)',[
+                    mysql_query('INSERT INTO users (username, hashed_password, email) VALUES (?, ?, ?)', [
                         username,
                         hash,
                         email,
-                    ]).then(function(){
+                    ]).then(function () {
                         res.status(200).json({ "status": 200, "message": "Done!" });
-    
-                    }).catch(function(){
+
+                    }).catch(function () {
                         res.status(500).json({ "status": 500, "message": "Internal Error", "errorCode": 10004 });
-    
+
                     });
 
                 });
@@ -355,7 +406,7 @@ app.post('/register', function(req, res) {
 
 
 
-app.post('/logout', async function(req, res) {
+app.post('/logout', async function (req, res) {
     try {
         let check = await checkIfValid(req);
         if (check == 1) {
@@ -385,113 +436,113 @@ app.use('/reset', resetLimiter);
 
 app.post('/reset', async function (req, res) {
 
-  if (goodRequest(req.body, ["oldPassword", "newPassword"])) {
-    try {
-      let check = await checkIfValid(req);
-      if (check == 1) {
-        let oldPassword = req.body.oldPassword;
-        let newPassword = req.body.newPassword;
-        db.all('SELECT * FROM users WHERE username = ?', [req.session.user.username], function (err, row) {
-          if (err) {
-            res.status(500).json({ "status": 500, "message": "Unexpected Error", "errorCode": 40000 });
-            return;
-          }
-          else if (row.length == 0) {
-            res.status(500).json({ "status": 500, "message": "Unexpected Error", "errorCode": 40001 });
-            return;
-          }
-           else {
+    if (goodRequest(req.body, ["oldPassword", "newPassword"])) {
+        try {
+            let check = await checkIfValid(req);
+            if (check == 1) {
+                let oldPassword = req.body.oldPassword;
+                let newPassword = req.body.newPassword;
+                db.all('SELECT * FROM users WHERE username = ?', [req.session.user.username], function (err, row) {
+                    if (err) {
+                        res.status(500).json({ "status": 500, "message": "Unexpected Error", "errorCode": 40000 });
+                        return;
+                    }
+                    else if (row.length == 0) {
+                        res.status(500).json({ "status": 500, "message": "Unexpected Error", "errorCode": 40001 });
+                        return;
+                    }
+                    else {
 
-            bcrypt.compare(oldPassword, row[0].hashed_password, function(err, result) {
-                if (err) {
-                    res.status(500).json({ "status": 500, "message": "Unexpected Error", "errorCode": 40005 });
-                    return;
-    
-                  }
-                  else if (result === false) {
-                    res.status(500).json({ "status": 500, "message": "The entered password doesn't match your old password.", "errorCode": 40006 });
-                    return;
-                  }
-                  else if (result === true) {
+                        bcrypt.compare(oldPassword, row[0].hashed_password, function (err, result) {
+                            if (err) {
+                                res.status(500).json({ "status": 500, "message": "Unexpected Error", "errorCode": 40005 });
+                                return;
 
-
-                  
-                    bcrypt.genSalt(saltRounds, function(err, salt) {
-                        if(err){
-                            res.status(500).json({ "status": 500, "message": "Internal Error", "errorCode": 40007 });
-                            return;
-                        }
-                        bcrypt.hash(newPassword, salt, function(err, hash) {
-                            if(err){
-                                res.status(500).json({ "status": 500, "message": "Internal Error", "errorCode": 40008 });
+                            }
+                            else if (result === false) {
+                                res.status(500).json({ "status": 500, "message": "The entered password doesn't match your old password.", "errorCode": 40006 });
                                 return;
                             }
-                            
-
-                            db.all('UPDATE users SET hashed_password=?, reset=?, timestamp=? WHERE username =?', [hash, "0", 0, req.session.user.username], async function (err, row) {
-                                if (err) {
-                                    res.status(500).json({ "status": 500, "message": "Unexpected Error", "errorCode": 40010 });
-                                    return;
-                                }
-                                else {
-                                    try {
-                                        await revokeAllSessions(req.session.id, req.session.user.username);
-                                        res.status(200).json({ "status": 200, "message": "Your password has been changed"});
+                            else if (result === true) {
 
 
-                                    } catch (err) {
-                                        res.status(500).json({ "status": 500, "message": "Something went wrong; although, your password has been changed, but the other sessions are still active.", "errorCode": 40010 });
 
+                                bcrypt.genSalt(saltRounds, function (err, salt) {
+                                    if (err) {
+                                        res.status(500).json({ "status": 500, "message": "Internal Error", "errorCode": 40007 });
+                                        return;
                                     }
-                                }
-                            });
-        
-                              
+                                    bcrypt.hash(newPassword, salt, function (err, hash) {
+                                        if (err) {
+                                            res.status(500).json({ "status": 500, "message": "Internal Error", "errorCode": 40008 });
+                                            return;
+                                        }
+
+
+                                        db.all('UPDATE users SET hashed_password=?, reset=?, timestamp=? WHERE username =?', [hash, "0", 0, req.session.user.username], async function (err, row) {
+                                            if (err) {
+                                                res.status(500).json({ "status": 500, "message": "Unexpected Error", "errorCode": 40010 });
+                                                return;
+                                            }
+                                            else {
+                                                try {
+                                                    await revokeAllSessions(req.session.id, req.session.user.username);
+                                                    res.status(200).json({ "status": 200, "message": "Your password has been changed" });
+
+
+                                                } catch (err) {
+                                                    res.status(500).json({ "status": 500, "message": "Something went wrong; although, your password has been changed, but the other sessions are still active.", "errorCode": 40010 });
+
+                                                }
+                                            }
+                                        });
+
+
+                                    });
+                                });
+
+
+                            }
                         });
-                    });
+                    }
+                });
+            } else {
+                res.status(400).json({ "status": 400, "message": "Your session has expired", "errorCode": 40011 });
 
+            }
+        } catch (err) {
+            console.log(err);
+            res.status(500).json({ "status": 500, "message": "Unexpected Error", "errorCode": 40012 });
 
-                  }
-            });
-          }
-        });
-      } else {
-        res.status(400).json({ "status": 400, "message": "Your session has expired", "errorCode": 40011 });
-
-      }
-    } catch (err) {
-        console.log(err);
-      res.status(500).json({ "status": 500, "message": "Unexpected Error", "errorCode": 40012 });
+        }
+    } else {
+        res.status(400).json({ "status": 400, "message": "Bad/Incomplete request", "errorCode": 40013 });
 
     }
-  } else {
-    res.status(400).json({ "status": 400, "message": "Bad/Incomplete request", "errorCode": 40013 });
-
-  }
 
 });
 
 async function mysql_query(command, inputs, lastID = false) {
 
-    return new Promise(function(resolve, reject) {
+    return new Promise(function (resolve, reject) {
         try {
-            if(lastID){
-                db.run(command,inputs,function(error){
-                    if(error){
+            if (lastID) {
+                db.run(command, inputs, function (error) {
+                    if (error) {
                         reject("Internal error.");
 
-                    }else{
+                    } else {
                         resolve(this);
 
                     }
                 });
 
-            }else{
-                db.all(command,inputs,function(error, result){
-                    if(error){
+            } else {
+                db.all(command, inputs, function (error, result) {
+                    if (error) {
                         reject("Internal error.");
 
-                    }else{
+                    } else {
                         resolve(result);
 
                     }
@@ -1041,7 +1092,7 @@ var actions = {
 };
 
 
-app.use('/api', function(req, res, next) {
+app.use('/api', function (req, res, next) {
 
 
     try {
@@ -1068,16 +1119,16 @@ async function handleRequest(req, res) {
 
 
 
-    actions[req.body.action](req).then(function(x) {
+    actions[req.body.action](req).then(function (x) {
         res.json(x);
         res.end();
-    }).catch(function(error) {
+    }).catch(function (error) {
         res.json(error);
         res.end();
     });
 
 }
-app.use('/api', async function(req, res, next) {
+app.use('/api', async function (req, res, next) {
     try {
         let check = await checkIfValid(req);
         if (check != 1) {
@@ -1107,7 +1158,7 @@ app.post('/api', (req, res) => {
             });
         }
 
-        
+
     } catch (err) {
         console.log(err);
     }
@@ -1118,4 +1169,4 @@ app.post('/api', (req, res) => {
 var httpsServer = https.createServer({}, app);
 var listener = httpsServer.listen(process.env.PORT, () => {
     console.log("Your app is listening on port " + listener.address().port);
-  });
+});
