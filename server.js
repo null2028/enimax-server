@@ -12,7 +12,8 @@ const upload = multer();
 var https = require('http');
 const bodyParser = require('body-parser');
 const RedisStoreLimit = require("rate-limit-redis");
-
+const rateRedis = require("ioredis");
+const rateclient = new rateRedis();
 let RedisStore = require('connect-redis')(session);
 let redisClient = redis.createClient({
     legacyMode: true
@@ -60,7 +61,10 @@ const loginLimiter = rateLimit({
     max: 10,
     message: "{\"status\": 400, \"message\":\"Too many requests\"}",
     store: new RedisStoreLimit({
-        client: redisClient,
+        sendCommand: (...args) => rateclient.call(...args),
+        prefix : "login",
+
+
     }),
     keyGenerator: (request, response) => {
 
@@ -90,7 +94,8 @@ const registerLimiter = rateLimit({
 
     message: "{\"status\": 400, \"message\":\"Too many requests\"}",
     store: new RedisStoreLimit({
-        client: redisClient,
+        sendCommand: (...args) => rateclient.call(...args),
+        prefix : "register",
     }),
     keyGenerator: (request, response) => {
 
@@ -120,7 +125,9 @@ const resetLimiter = rateLimit({
     windowMs: 60 * 1000 * 5, // 5 minute
     max: 5,
     store: new RedisStoreLimit({
-        client: redisClient,
+        sendCommand: (...args) => rateclient.call(...args),
+        prefix : "reset",
+
     }),
     keyGenerator: (request, response) => {
 
@@ -384,7 +391,7 @@ app.post('/register', function (req, res) {
                         res.status(200).json({ "status": 200, "message": "Done!" });
 
                     }).catch(function () {
-                        res.status(500).json({ "status": 500, "message": "Internal Error", "errorCode": 10004 });
+                        res.status(500).json({ "status": 500, "message": "Internal Error. Try another username.", "errorCode": 10004 });
 
                     });
 
