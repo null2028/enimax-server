@@ -47,9 +47,17 @@ db.serialize(() => {
         db.run(" CREATE TABLE `users` (`id` INTEGER PRIMARY KEY ,`username` varchar(20) UNIQUE NOT NULL, `hashed_password` blob NOT NULL,`salt` blob NULL,`email` text NOT NULL,`reset` text,`timestamp` BIGINT DEFAULT NULL  )");
 
         db.run("CREATE UNIQUE INDEX video_idx_username ON users (username)");
-        db.run("CREATE TABLE `video` (`id` INTEGER PRIMARY KEY,`cur_time` float(12,3) NOT NULL,`ep` float(12,3) NOT NULL,`name` text NOT NULL,`time1` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP,`time2` int DEFAULT NULL,`image` text,`curlink` text,`username` text NOT NULL,`comp` int NOT NULL DEFAULT '0',`main_link` text,`times` int NOT NULL DEFAULT '0' );")
+        db.run("CREATE TABLE `video` (`id` INTEGER PRIMARY KEY,`cur_time` float(12,3) NOT NULL,`ep` float(12,3) NOT NULL,`name` text NOT NULL,`time1` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP,`time2` int DEFAULT NULL,`image` text,`curlink` text,`username` text NOT NULL,`comp` int NOT NULL DEFAULT '0',`main_link` text,`times` int NOT NULL DEFAULT '0', `parent_name` text );")
 
         db.run("CREATE INDEX video_idx_name ON video (name)");
+    }else{
+        try{
+            db.run("ALTER TABLE `video` ADD `parent_name` text", (x) => {
+                
+            });
+        }catch(err){
+
+        }
     }
 });
 
@@ -626,8 +634,10 @@ async function updateTime(req) {
 
 async function getShowInfo(req) {
     try {
-
-        if ("cur" in req.body && "name" in req.body && "ep" in req.body) {
+        if("fallbackDuration" in req.body){
+            return getDurationInfo(req);
+        }
+        else if ("cur" in req.body && "name" in req.body && "ep" in req.body) {
             var cur = req.body.cur;
             var name = req.body.name;
             var nameUm;
@@ -669,12 +679,30 @@ async function getShowInfo(req) {
                 var getdata = await mysql_query("SELECT cur_time as curtime from video where ep=? and name=? and username=? LIMIT 1", [ep, name, username]);
 
 
-                if (getdata.length != 0) {
-                    response.time = getdata[0].curtime;
-                } else {
-                    response.time = 0;
-                    await mysql_query("INSERT INTO video (ep,cur_time,name,username) VALUES (?,?,?,?)", [ep, 0, name, username]);
+                if("duration" in req.body){
+                    let dur = parseInt(req.body.duration);
+                    if(isNaN(dur)){
+                        return { "status": 400, "message": "Duration can't be NaN" };
+                    }else{
+                        if (getdata.length != 0) {
 
+                            await mysql_query("UPDATE video set comp=?, main_link=? where username=? and name=? and ep=?", [ dur, cur, username, name, ep]);
+                            await mysql_query("UPDATE video set parent_name=? where username=? and name=? and ep=? and parent_name is NULL", [nameUm, username, name, ep]);
+                        
+                        } else {
+                            await mysql_query("INSERT INTO video (ep,cur_time,name,comp, main_link, parent_name, username) VALUES (?,?,?,?,?,?.?)", [ep, 0, name, dur, cur, nameUm, username]);
+
+                        }
+                    }
+                }else{
+                    if (getdata.length != 0) {
+                        response.time = getdata[0].curtime;
+                    } else {
+                        response.time = 0;
+                        await mysql_query("INSERT INTO video (ep,cur_time,name,username) VALUES (?,?,?,?)", [ep, 0, name, username]);
+
+
+                    }
                 }
 
 
@@ -699,6 +727,24 @@ async function getShowInfo(req) {
 
 }
 
+async function getDurationInfo(req) {
+    try{
+        let username = req.session.user.username;
+
+        if ("name" in req.body) {
+            let name = req.body.name;
+            let getdata = await mysql_query("SELECT cur_time as curtime, comp as duration, main_link as name, ep from video where username=? and parent_name=?", [username, name]);
+
+            return { "status": 200, "data": getdata };
+        }else{
+            return { "status": 400, "message": "Bad request" };
+        }
+    }catch(err){
+        console.error(err);
+        return { "status": 500, "errorCode": 10000, "message": "Database error." }; 
+    }
+    
+}
 
 async function getUserInfo(req) {
     try {
@@ -1123,18 +1169,19 @@ app.use('/api', function (req, res, next) {
 });
 
 async function handleRequest(req, res) {
-
-
-
-    actions[req.body.action](req).then(function (x) {
-        res.json(x);
-        res.end();
-    }).catch(function (error) {
-        res.json(error);
-        res.end();
-    });
-
+    if(req.body.action in actions){
+        actions[req.body.action](req).then(function (x) {
+            res.json(x);
+            res.end();
+        }).catch(function (error) {
+            res.json(error);
+            res.end();
+        });
+    }else{
+        res.json({"status": 400, "message": "Action not found"});
+    }
 }
+
 app.use('/api', async function (req, res, next) {
     try {
         let check = await checkIfValid(req);
