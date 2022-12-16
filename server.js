@@ -586,7 +586,13 @@ async function updateTime(req) {
             var name = req.body.name;
             var ep = parseFloat(req.body.ep);
             var username = req.session.user.username;
+            let nameUm;
+            if ("nameUm" in req.body) {
+                nameUm = req.body.nameUm;
+            } else {
+                nameUm = req.body.name;
 
+            }
 
 
             var getcount = await mysql_query("SELECT count(*) as count from video where ep=? and name=? and username=?", [ep, name, username]);
@@ -595,7 +601,21 @@ async function updateTime(req) {
 
                 var update = await mysql_query("UPDATE video set cur_time=?,time2=?, times=times+1 where ep=? and name=? and username=?", [cur, timern(), ep, name, username]);
 
-                var update = await mysql_query("UPDATE video set time2=? where ep=0 and name=?  and username=?", [timern(), name, username]);
+                // var update = await mysql_query("UPDATE video set time2=? where ep=0 and name=?  and username=?", [timern(), nameUm, username]);
+                let executed = false;
+                if("prog" in req.body){
+                    let duration = parseInt(req.body.prog);
+                    let current = parseInt(cur);
+                    
+                    if(!isNaN(duration) && !isNaN(current) && duration != 0){
+                        await mysql_query("UPDATE video set time2=?, parent_name=? where username=? and ep=0 and name=?", [timern(), JSON.stringify([current, duration]), username, nameUm]);
+                        executed = true;
+                    }
+                }
+
+                if(!executed){
+                    await mysql_query("UPDATE video set time2=? where username=? and ep=0 and name=?", [timern(), username, nameUm]);
+                }
 
 
 
@@ -760,14 +780,14 @@ async function getUserInfo(req) {
                 []
             ];
 
-            var getData = await mysql_query("SELECT DISTINCT(name) as b,cur_time as a,image,time2,curlink,comp,main_link from video where ep=0  and curlink IS NOT NULL and username=? ORDER BY time2 DESC", [username]);
+            var getData = await mysql_query("SELECT DISTINCT(name) as b,cur_time as a,image,time2,curlink,comp,main_link,parent_name from video where ep=0  and curlink IS NOT NULL and username=? ORDER BY time2 DESC", [username]);
 
 
 
             if (getData.length > 0) {
                 for (var i = 0; i < getData.length; i++) {
                     let temp = [];
-                    temp.push(getData[i]["b"], getData[i]["a"], getData[i]["image"], getData[i]["curlink"], getData[i]["comp"], getData[i]["main_link"]);
+                    temp.push(getData[i]["b"], getData[i]["a"], getData[i]["image"], getData[i]["curlink"], getData[i]["comp"], getData[i]["main_link"], getData[i]["parent_name"]);
                     response[0].push(temp);
                 }
 
